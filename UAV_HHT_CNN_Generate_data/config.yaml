@@ -1,0 +1,69 @@
+project:
+  name: rflymad_mkmmd_fd
+  output_root: ./runs
+  exp_name: exp_mkmmd
+  seed: 42
+
+data:
+  # 数据路径使用环境变量 (Docker容器中 DATA_ROOT=/data)
+  root_dir: "${DATA_ROOT:D:/DL_LEARN/Dataset/Processdata}"
+  file_glob: "Case_*.csv"
+  source_A_values: [1, 2]
+  target_A_values: [3]
+  window_length: 648
+  window_stride: 64
+  stft_on_gpu: true
+  cache_in_memory: true
+  cache_size_files: 64
+  max_windows_per_file: null
+  drop_last_window: true
+  feature_columns:
+    - "_sensor_combined_0_gyro_rad[0]"
+    - "_sensor_combined_0_gyro_rad[1]"
+    - "_sensor_combined_0_gyro_rad[2]"
+    - "_sensor_combined_0_accelerometer_m_s2[0]"
+    - "_sensor_combined_0_accelerometer_m_s2[1]"
+    - "_sensor_combined_0_accelerometer_m_s2[2]"
+
+stft:
+  n_fft: 64
+  hop_length: 16
+  win_length: 64
+  center: false
+  log_magnitude: true
+  eps: 1.0e-6
+  resize:
+    enabled: true
+    out_freq: 64
+    out_time: 64
+
+train:
+  device: cuda:0
+  num_epochs: 30
+  batch_size: 96
+  num_workers: 12
+  pin_memory: true
+  lr: 0.0005
+  weight_decay: 0.0001
+  grad_clip_norm: 5.0
+  label_smoothing: 0.0
+  source_val_ratio: 0.2
+  mmd_lambda: 1.0
+  log_interval: 20
+
+mkmmd:
+  kernel_num: 5
+  kernel_mul: 2.0
+  fix_sigma: null
+
+model:
+  base_channels: 32
+  feat_dim: 256
+  dropout: 0.2
+
+eval:
+  max_umap_points_per_domain: 4000
+  umap_n_neighbors: 30
+  umap_min_dist: 0.1
+  umap_metric: euclidean
+  umap_n_jobs: 8

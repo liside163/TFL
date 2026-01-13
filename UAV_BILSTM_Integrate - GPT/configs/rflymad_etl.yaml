@@ -1,0 +1,3 @@
+# 兼容占位文件（不再作为配置源）
+# 请只修改根目录的 rflymad_etl.yaml，所有超参数统一放在那里。
+# etl/config.py 会自动把 configs/rflymad_etl.yaml 重定向到根目录配置。

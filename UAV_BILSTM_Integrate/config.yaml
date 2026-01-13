@@ -1,0 +1,99 @@
+seed: 42
+device: "auto"  # auto/cpu/cuda
+
+data:
+  # 数据路径使用环境变量 (Docker容器中 DATA_ROOT=/data)
+  root: "${DATA_ROOT:./ProcessData_test}"
+  patterns: ["Case_*.csv"]
+  recursive: true
+
+window:
+  seq_len: 400
+  stride: 400
+  target_mode: "last"       # 每个窗口预测最后一帧 actuator 输出
+  fault_label_mode: "last"  # 用窗口最后一帧 UAVState_data_fault_state 作为真值（0/1）
+
+columns:
+  timestamp: ["Timestamp", "trueTime"]
+  quaternion:
+    - "_vehicle_attitude_0_q[0]"
+    - "_vehicle_attitude_0_q[1]"
+    - "_vehicle_attitude_0_q[2]"
+    - "_vehicle_attitude_0_q[3]"
+  velocity_xy: ["_vehicle_local_position_0_vx", "_vehicle_local_position_0_vy"]
+  pwm: ["_actuator_outputs_0_output[0]"]
+  fault_state: ["UAVState_data_fault_state"]
+
+features:
+  add_euler: true
+  add_ground_speed: true
+  quat_order: "wxyz"
+  euler_degrees: false
+  input:
+    - "roll"
+    - "pitch"
+    - "ground_speed"
+    - "_sensor_combined_0_gyro_rad[0]"
+    - "_sensor_combined_0_gyro_rad[2]"
+    - "_sensor_combined_0_accelerometer_m_s2[0]"
+    - "_sensor_combined_0_accelerometer_m_s2[2]"
+
+normalization:
+  x: "standard"
+  pwm_min: 1000.0
+  pwm_max: 2000.0
+  pwm_out_range: [0.0, 1.0]
+
+task:
+  pwm_index: 0
+
+splits:
+  source_val_ratio: 0.2
+  target_val_ratio: 0.2
+
+training:
+  batch_size: 64
+  num_workers: 0
+  pretrain:
+    epochs: 10
+    lr: 0.001
+  transfer:
+    epochs: 5
+    lr: 0.0005
+    freeze_bilstm_layers: 2
+
+r_score:
+  mine_alpha: 0.6
+  mine_c: 15
+  weight_mode: "inverse"  # inverse 或 softmax_neg
+
+detection:
+  k_sigma: 2.0
+
+domains:
+  sources:
+    - name: "SIL"
+      domain_code: 1
+    - name: "HIL"
+      domain_code: 2
+  target:
+    name: "Real"
+    domain_code: 3
+
+labels:
+  normal_fault_types: [0]  # 仅用于兜底：当 CSV 缺 fault_state 列时从文件名推断
+
+diagnosis:
+  enabled: true
+  include_normal_in_classifier: false
+  max_train_samples: 20000
+  model: "logreg"
+
+log:
+  log_dir: "runs"
+  run_name: "rflymad_ensemble"
+
+output:
+  weights_dir: "weights"
+  figures_dir: "figures"
+

@@ -1,0 +1,385 @@
+# ============================================================
+# UAV-DANN 无人机故障诊断迁移学习 - 超参数与配置文件
+# ============================================================
+# 说明：本文件包含项目所有可调节的超参数和配置项
+# 修改本文件即可调整模型结构、训练策略、数据处理等参数
+# ============================================================
+
+# ------------------------------------------------------------
+# 1. 数据路径配置
+# ------------------------------------------------------------
+data:
+  # 原始数据集根目录 (使用环境变量，Docker容器中 DATA_ROOT=/workspace/data)
+  # 默认值为 Windows 本地路径（用于本地开发）
+  data_root:  "${DATA_ROOT:D:/Bigshe/RflyMAD_Dataset/Processdata_HIL&REAL}"
+  
+  # 源域名称（HIL仿真数据，有标签）
+  source_domain: "HIL"
+  
+  # 目标域名称（Real真实飞行数据）
+  target_domain: "REAL"
+  
+  # 处理后数据保存路径 (基于 DATA_ROOT)
+  processed_dir: "${DATA_ROOT:D:/Bigshe/RflyMAD_Dataset/Processdata_HIL&REAL}/processed"
+  
+  # 训练集比例 (源域)
+  train_ratio: 0.7
+  
+  # 验证集比例 (源域)
+  val_ratio: 0.15
+  
+  # 测试集比例 (目标域)
+  test_ratio: 0.15
+  
+  # 随机种子 (保证可复现性)
+  random_seed: 42
+
+
+# ------------------------------------------------------------
+# 2. 数据预处理配置
+# ------------------------------------------------------------
+preprocessing:
+  # 滑动窗口大小 (时间步数)
+  # 每个样本包含连续100个时间步的传感器数据
+  window_size: 100
+  
+  # 滑动窗口步长
+  # 步长50意味着相邻窗口有50%重叠
+  stride: 50
+  
+  # 标准化方式
+  # "zscore": Z-score标准化 (均值0, 方差1)
+  # "minmax": Min-Max归一化 (缩放到[0,1])
+  # "none": 不进行标准化
+  normalization: "zscore"
+  
+  # 选择的传感器特征列表 (共21维)
+  # 这些特征在HIL和Real数据中都存在，便于跨域迁移
+  selected_features:
+    # 控制指令 (4维) - 姿态控制输出
+    - "_actuator_controls_0_0_control[0]"   # roll控制
+    - "_actuator_controls_0_0_control[1]"   # pitch控制
+    - "_actuator_controls_0_0_control[2]"   # yaw控制
+    - "_actuator_controls_0_0_control[3]"   # thrust控制
+    
+    # PWM输出 (4维) - 电机驱动信号
+    - "_actuator_outputs_0_output[0]"       # 电机1 PWM
+    - "_actuator_outputs_0_output[1]"       # 电机2 PWM
+    - "_actuator_outputs_0_output[2]"       # 电机3 PWM
+    - "_actuator_outputs_0_output[3]"       # 电机4 PWM
+    
+    # 陀螺仪 (3维) - 角速度
+    - "_sensor_combined_0_gyro_rad[0]"      # X轴角速度
+    - "_sensor_combined_0_gyro_rad[1]"      # Y轴角速度
+    - "_sensor_combined_0_gyro_rad[2]"      # Z轴角速度
+    
+    # 加速度计 (3维) - 线加速度
+    - "_sensor_combined_0_accelerometer_m_s2[0]"  # X轴加速度
+    - "_sensor_combined_0_accelerometer_m_s2[1]"  # Y轴加速度
+    - "_sensor_combined_0_accelerometer_m_s2[2]"  # Z轴加速度
+    
+    # 气压计 (3维)
+    - "_vehicle_air_data_0_baro_alt_meter"       # 气压高度
+    - "_vehicle_air_data_0_baro_temp_celcius"    # 温度
+    - "_vehicle_air_data_0_baro_pressure_pa"     # 气压
+    
+    # 姿态四元数 (4维) - 姿态估计
+    - "_vehicle_attitude_0_q[0]"            # q0 (w)
+    - "_vehicle_attitude_0_q[1]"            # q1 (x)
+    - "_vehicle_attitude_0_q[2]"            # q2 (y)
+    - "_vehicle_attitude_0_q[3]"            # q3 (z)
+  
+  # 特征维度 (自动计算，与selected_features长度一致)
+  n_features: 21
+
+# ------------------------------------------------------------
+# 3. 变点检测配置 (用于Real数据故障定位)
+# ------------------------------------------------------------
+# Real数据没有fault_state标签，需要通过变点检测定位故障发生时刻
+change_point_detection:
+  # 是否启用变点检测
+  enabled: true
+  
+  # 检测方法
+  # "cusum": CUSUM累积和方法 - 检测均值突变
+  # "zscore": Z-score滑动窗口方法 - 检测异常点
+  # "combined": 综合多种方法 (推荐)
+  method: "combined"
+  
+  # 检测阈值 (Z-score的倍数)
+  # 值越大，检测越保守，可能漏检
+  # 值越小，检测越敏感，可能误检
+  # 建议范围: 2.0 - 4.0
+  threshold: 2.5
+  
+  # 滑动窗口大小 (用于计算局部统计量)
+  # 较大的窗口更稳定，但可能延迟检测
+  # 建议范围: 20 - 50
+  window_size: 30
+  
+  # 最小分段长度
+  # 检测到变点后，至少跳过这么多时间步再检测下一个
+  # 防止在噪声区域检测到过多变点
+  min_segment_length: 100
+  
+  # 用于变点检测的特征索引 (使用前N个特征)
+  # 推荐使用控制输出和PWM信号 (前8个特征)
+  detection_features_count: 8
+
+# ------------------------------------------------------------
+# 4. 故障类型配置 (7分类 - 移除Real域缺失的类型)
+# ------------------------------------------------------------
+# 移除的类型: Propeller(01), Low_Voltage(02), Wind_Affect(03), Load_Lose(04)
+fault_types:
+  # 7种故障类型标签映射 (新编号)
+  labels:
+    0: "No_Fault"        # 无故障（正常飞行） - 原10
+    1: "Motor"           # 电机故障 - 原00
+    2: "Accelerometer"   # 加速度计故障 - 原05
+    3: "Gyroscope"       # 陀螺仪故障 - 原06
+    4: "Magnetometer"    # 磁力计故障 - 原07
+    5: "Barometer"       # 气压计故障 - 原08
+    6: "GPS"             # GPS故障 - 原09
+  
+  # 故障类别数量
+  num_classes: 7
+  
+  # ========== 修复：正确的类别名称列表（按标签索引0-6排序）==========
+  names:
+    - "No_Fault"       # 标签0：无故障
+    - "Motor"          # 标签1：电机故障
+    - "Accelerometer"  # 标签2：加速度计故障
+    - "Gyroscope"      # 标签3：陀螺仪故障
+    - "Magnetometer"   # 标签4：磁力计故障
+    - "Barometer"      # 标签5：气压计故障
+    - "GPS"            # 标签6：GPS故障
+  
+  # 原始故障代码到新标签的映射（用于数据预处理）
+  # 格式：原始CD代码 -> 新标签
+  code_to_label:
+    "00": 1   # Motor -> 1
+    "05": 2   # Accelerometer -> 2
+    "06": 3   # Gyroscope -> 3
+    "07": 4   # Magnetometer -> 4
+    "08": 5   # Barometer -> 5
+    "09": 6   # GPS -> 6
+    "10": 0   # No_Fault -> 0
+  
+  # 需要跳过的故障代码（Real域中缺失）
+  skip_codes: ["01", "02", "03", "04"]
+
+# ------------------------------------------------------------
+# 5. 模型架构配置
+# ------------------------------------------------------------
+model:
+  # 模型名称
+  name: "dann"
+  
+  # 特征提取器配置 (1D-CNN + LSTM)
+  feature_extractor:
+    # 1D卷积神经网络配置
+    cnn:
+      # CNN层数 (Optuna Deep HPO优化结果: 1层)
+      num_layers: 1               # CNN卷积层数量
+      
+      # 基础通道数 (Optuna Deep HPO优化结果: 96)
+      base_channels: 96           # 第一层输出通道数，后续层翻倍
+      
+      # 第一层卷积
+      conv1_out_channels: 96      # 输出通道数 (Optuna优化结果)
+      conv1_kernel_size: 5        # 卷积核大小
+      conv1_stride: 1             # 步长
+      conv1_padding: 2            # 填充 (保持时间维度不变)
+      
+      # 第二层卷积 (当num_layers >= 2时使用)
+      conv2_out_channels: 192     # 输出通道数
+      conv2_kernel_size: 5        # 卷积核大小
+      conv2_stride: 1             # 步长
+      conv2_padding: 2            # 填充
+      
+      # 池化层配置
+      pool_kernel_size: 2         # 池化核大小
+      pool_stride: 2              # 池化步长 (时间维度减半)
+    
+    # LSTM配置
+    lstm:
+      hidden_size: 192            # 隐藏层大小 (Optuna Deep HPO优化结果)
+      num_layers: 3               # LSTM层数 (Optuna Deep HPO优化结果)
+      bidirectional: true         # 是否双向LSTM (Optuna Deep HPO优化结果)
+      dropout: 0.2248             # Dropout概率 (Optuna Deep HPO优化结果)
+  
+  # 故障分类器配置
+  classifier:
+    hidden_dim: 128               # 隐藏层维度 (Optuna Deep HPO优化结果)
+    num_layers: 2                 # 分类器隐藏层数量 (Optuna Deep HPO优化结果)
+    dropout: 0.4928               # Dropout概率 (Optuna Deep HPO优化结果)
+    num_classes: 7                # 输出类别数 (7分类)
+  
+  # 域判别器配置
+  domain_discriminator:
+    hidden_dim: 64                # 隐藏层维度 (Optuna Deep HPO优化结果)
+    num_layers: 1                 # 判别器隐藏层数量 (Optuna Deep HPO优化结果)
+    dropout: 0.5                  # Dropout概率
+
+# ------------------------------------------------------------
+# 6. 训练配置
+# ------------------------------------------------------------
+training:
+  # 批量大小
+  batch_size: 16                  # (Optuna优化结果)
+  
+  # DataLoader 数据加载配置
+  dataloader:
+    # 多进程数据加载工作进程数
+    # Windows下多进程容易出现内存问题，建议设为0
+    # Linux下可设为4~8，如果GPU利用率低且瓶颈不在数据加载，可保持较小值
+    num_workers: 8                # Windows设0，Linux可设4~8
+    
+    # 每个worker预取的batch数量
+    # 仅在num_workers > 0时生效
+    prefetch_factor: 4
+    
+    # 是否保持worker进程
+    # True可减少worker启动开销，但占用更多内存
+    # 仅在num_workers > 0时生效
+    persistent_workers: true      # Linux下设为true提高效率
+    
+    # 是否将数据固定到GPU内存
+    # 可加速GPU数据传输，但占用更多GPU内存
+    pin_memory: true
+  
+  # 训练轮数
+  num_epochs: 100
+  
+  # 优化器配置
+  optimizer:
+    name: "adam"                  # 优化器类型
+    learning_rate: 0.006851       # 学习率 (Optuna Deep HPO优化结果)
+    weight_decay: 0.001291        # L2正则化系数 (Optuna Deep HPO优化结果)
+    betas: [0.9, 0.999]           # Adam的Beta参数
+  
+  # 学习率调度器配置
+  scheduler:
+    name: "warmup_cosine"         # 调度器类型 (Optuna Deep HPO优化结果)
+    warmup_epochs: 5              # 预热epoch数 (Optuna Deep HPO优化结果)
+    step_size: 30                 # 每30个epoch衰减一次 (仅step调度器使用)
+    gamma: 0.1                    # 衰减系数 (仅step调度器使用)
+  
+  # 域适应训练策略
+  domain_adaptation:
+    # GRL系数调度参数
+    # lambda = 2 / (1 + exp(-gamma_grl * p)) - 1
+    # p = epoch / total_epochs
+    gamma_grl: 17.7095            # GRL调度参数 (Optuna Deep HPO优化结果)
+    
+    # 预热轮数 (前N轮不进行域适应)
+    warmup_epochs: 5              # (Optuna Deep HPO优化结果)
+    
+    # 域损失权重
+    domain_loss_weight: 1.1723    # (Optuna Deep HPO优化结果)
+    
+    # 域权重调度策略
+    domain_weight_schedule: "exponential"  # (Optuna Deep HPO优化结果)
+  
+  # 损失函数配置
+  loss:
+    classification: "cross_entropy"     # 分类损失
+    domain: "binary_cross_entropy"      # 域判别损失
+    class_weights: null                 # 类别权重 (处理不平衡)
+
+# ------------------------------------------------------------
+# 7. 评估配置
+# ------------------------------------------------------------
+evaluation:
+  # 评估指标列表
+  metrics:
+    - "accuracy"          # 准确率
+    - "f1_score"          # F1分数
+    - "precision"         # 精确率
+    - "recall"            # 召回率
+    - "confusion_matrix"  # 混淆矩阵
+  
+  # F1计算方式
+  f1_average: "weighted"  # 按样本数加权
+  
+  # 是否保存预测结果
+  save_predictions: true
+  
+  # 可视化配置
+  visualization:
+    plot_confusion_matrix: true       # 绘制混淆矩阵
+    plot_tsne: true                   # t-SNE特征可视化
+    plot_training_curves: true        # 训练曲线
+    plot_domain_distribution: true    # 域分布可视化
+
+# ------------------------------------------------------------
+# 8. 设备配置
+# ------------------------------------------------------------
+device:
+  # 是否使用GPU
+  use_gpu: true
+  
+  # GPU设备ID
+  gpu_id: 0
+  
+  # 是否使用多GPU (DataParallel)
+  multi_gpu: false
+  gpu_ids: [0]
+
+# ------------------------------------------------------------
+# 9. 日志配置
+# ------------------------------------------------------------
+logging:
+  # 日志保存目录
+  log_dir: "./logs"
+  
+  # TensorBoard配置
+  use_tensorboard: true
+  tensorboard_dir: "./runs"
+  
+  # 检查点配置
+  checkpoint_dir: "./checkpoints"
+  save_every_n_epochs: 10         # 每N轮保存一次
+  save_best_only: true            # 仅保存最优模型
+  
+  # 实验名称 (用于区分不同实验)
+  experiment_name: "dann_hil2real_11faults"
+
+# ------------------------------------------------------------
+# 10. 可复现性配置
+# ------------------------------------------------------------
+reproducibility:
+  seed: 42                        # 全局随机种子
+  deterministic: true             # CUDNN确定性模式
+  benchmark: false                # CUDNN基准测试模式
+
+# ============================================================
+# 维度变化说明
+# ============================================================
+# 
+# 【数据流维度变化】
+# 
+# 1. 输入: (batch_size, seq_len, n_features) = (16, 100, 21)
+#    - 16个样本/批次
+#    - 100个时间步/样本
+#    - 21个传感器特征
+#
+# 2. CNN特征提取:
+#    - 转置: (16, 21, 100) → Conv1d需要(C, L)格式
+#    - Conv1: (16, 64, 100) → 64个卷积核
+#    - Pool1: (16, 64, 50) → 时间维度减半
+#    - Conv2: (16, 192, 50) → 192个卷积核
+#    - Pool2: (16, 192, 25) → 时间维度再减半
+#
+# 3. LSTM序列建模:
+#    - 转置: (16, 25, 192) → LSTM需要(T, C)格式
+#    - LSTM: (16, 64) → 取最后隐藏状态
+#
+# 4. 分类器:
+#    - FC1: (16, 64) → (16, 96)
+#    - FC2: (16, 96) → (16, 11) → 11类故障预测
+#
+# 5. 域判别器:
+#    - GRL: (16, 64) → 梯度反转
+#    - FC: (16, 64) → (16, 1) → 域判别
+# ============================================================

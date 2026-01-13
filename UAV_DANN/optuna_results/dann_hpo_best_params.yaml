@@ -1,0 +1,14 @@
+batch_size: 16
+classifier_dropout: 0.3433561139162167
+classifier_hidden: 96
+conv1_channels: 64
+conv2_channels: 192
+discriminator_hidden: 64
+domain_loss_weight: 0.9355478827372692
+gamma_grl: 14.96368189354169
+learning_rate: 0.009661358100500523
+lstm_dropout: 0.22388031188668656
+lstm_hidden: 64
+lstm_layers: 1
+warmup_epochs: 8
+weight_decay: 0.0002900681092776547

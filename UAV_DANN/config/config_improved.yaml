@@ -1,0 +1,248 @@
+# ============================================================
+# UAV-DANN 改进版配置文件
+# ============================================================
+# 说明：针对35%目标域准确率问题的改进配置
+#
+# 关键改进：
+# - gamma_grl: 17.7 → 3.0 (更保守的GRL调度)
+# - warmup_epochs: 5 → 20 (延长预热期)
+# - learning_rate: 0.0068 → 0.0001 (降低学习率)
+# - domain_loss_weight: 1.17 → 0.5 (降低域损失权重)
+# - 添加Focal Loss支持
+# - 添加目标域验证集
+# ============================================================
+
+# ------------------------------------------------------------
+# 1. 数据路径配置（与原配置相同）
+# ------------------------------------------------------------
+data:
+  # 数据路径使用环境变量 (Docker容器中 DATA_ROOT=/data)
+  data_root:  "${DATA_ROOT:/mnt/d/DL_LEARN/Dataset/Processdata_HIL&REAL}"
+  source_domain: "HIL"
+  target_domain: "REAL"
+  processed_dir: "${DATA_ROOT:/mnt/d/DL_LEARN/Dataset/Processdata_HIL&REAL}/processed"
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+  random_seed: 42
+
+
+  # ==================== 新增：目标域验证集比例 ====================
+  # 从目标域中划分一部分作为验证集（用于早停）
+  target_val_ratio: 0.2
+
+# ------------------------------------------------------------
+# 2. 数据预处理配置
+# ------------------------------------------------------------
+preprocessing:
+  window_size: 100
+  stride: 50
+  normalization: "zscore"
+  selected_features:
+    - "_actuator_controls_0_0_control[0]"
+    - "_actuator_controls_0_0_control[1]"
+    - "_actuator_controls_0_0_control[2]"
+    - "_actuator_controls_0_0_control[3]"
+    - "_actuator_outputs_0_output[0]"
+    - "_actuator_outputs_0_output[1]"
+    - "_actuator_outputs_0_output[2]"
+    - "_actuator_outputs_0_output[3]"
+    - "_sensor_combined_0_gyro_rad[0]"
+    - "_sensor_combined_0_gyro_rad[1]"
+    - "_sensor_combined_0_gyro_rad[2]"
+    - "_sensor_combined_0_accelerometer_m_s2[0]"
+    - "_sensor_combined_0_accelerometer_m_s2[1]"
+    - "_sensor_combined_0_accelerometer_m_s2[2]"
+    - "_vehicle_air_data_0_baro_alt_meter"
+    - "_vehicle_air_data_0_baro_temp_celcius"
+    - "_vehicle_air_data_0_baro_pressure_pa"
+    - "_vehicle_attitude_0_q[0]"
+    - "_vehicle_attitude_0_q[1]"
+    - "_vehicle_attitude_0_q[2]"
+    - "_vehicle_attitude_0_q[3]"
+  n_features: 21
+
+# ------------------------------------------------------------
+# 3. 变点检测配置
+# ------------------------------------------------------------
+change_point_detection:
+  enabled: true
+  method: "combined"
+  threshold: 2.5
+  window_size: 30
+  min_segment_length: 100
+  detection_features_count: 8
+
+# ------------------------------------------------------------
+# 4. 故障类型配置 (7分类)
+# ------------------------------------------------------------
+fault_types:
+  labels:
+    0: "No_Fault"
+    1: "Motor"
+    2: "Accelerometer"
+    3: "Gyroscope"
+    4: "Magnetometer"
+    5: "Barometer"
+    6: "GPS"
+  num_classes: 7
+  code_to_label:
+    "00": 1
+    "05": 2
+    "06": 3
+    "07": 4
+    "08": 5
+    "09": 6
+    "10": 0
+  skip_codes: ["01", "02", "03", "04"]
+
+# ------------------------------------------------------------
+# 5. 模型架构配置
+# ------------------------------------------------------------
+model:
+  name: "dann_improved"
+
+  feature_extractor:
+    cnn:
+      num_layers: 1
+      base_channels: 96
+      conv1_out_channels: 96
+      conv1_kernel_size: 5
+      conv1_stride: 1
+      conv1_padding: 2
+      conv2_out_channels: 192
+      conv2_kernel_size: 5
+      conv2_stride: 1
+      conv2_padding: 2
+      pool_kernel_size: 2
+      pool_stride: 2
+
+    lstm:
+      hidden_size: 192
+      num_layers: 3
+      bidirectional: true
+      dropout: 0.2248
+
+  classifier:
+    hidden_dim: 128
+    num_layers: 2
+    dropout: 0.4928
+    num_classes: 7
+
+  domain_discriminator:
+    hidden_dim: 64
+    num_layers: 1
+    dropout: 0.5
+
+# ------------------------------------------------------------
+# 6. 训练配置（核心改进）
+# ------------------------------------------------------------
+training:
+  batch_size: 16
+
+  dataloader:
+    num_workers: 8
+    prefetch_factor: 4
+    persistent_workers: true
+    pin_memory: true
+
+  num_epochs: 100
+
+  # ==================== 优化器配置（改进版） ====================
+  optimizer:
+    name: "adam"
+    learning_rate: 0.0001              # 改进: 从0.0068降低到0.0001
+    learning_rate_improved: 0.0001     # 改进版使用的学习率
+    weight_decay: 0.001291
+    betas: [0.9, 0.999]
+
+  # ==================== 学习率调度器（改进版） ====================
+  scheduler:
+    name: "warmup_cosine"
+    warmup_epochs: 10                  # 改进: 延长warmup
+    warmup_epochs_improved: 20         # 改进版warmup轮数
+    step_size: 30
+    gamma: 0.1
+
+  # ==================== 域适应策略（核心改进） ====================
+  domain_adaptation:
+    # 原始配置
+    gamma_grl: 17.7095
+    warmup_epochs: 5
+    domain_loss_weight: 1.1723
+
+    # ==================== 改进版配置 ====================
+    gamma_grl_improved: 3.0            # 改进: 从17.7降低到3.0（更保守）
+    warmup_epochs_improved: 20         # 改进: 从5增加到20（延长预热）
+    domain_loss_weight_improved: 0.5   # 改进: 从1.17降低到0.5
+
+  # ==================== Focal Loss配置（新增） ====================
+  focal_gamma: 2.0                     # Focal Loss的gamma参数
+
+  # ==================== 损失函数配置 ====================
+  loss:
+    classification: "focal"            # 改进: 使用Focal Loss
+    domain: "binary_cross_entropy"
+    class_weights: "auto"              # 自动计算类别权重
+
+# ------------------------------------------------------------
+# 7. 评估配置
+# ------------------------------------------------------------
+evaluation:
+  metrics:
+    - "accuracy"
+    - "f1_score"
+    - "precision"
+    - "recall"
+    - "confusion_matrix"
+  f1_average: "weighted"
+  save_predictions: true
+  visualization:
+    plot_confusion_matrix: true
+    plot_tsne: true
+    plot_training_curves: true
+    plot_domain_distribution: true
+
+# ------------------------------------------------------------
+# 8. 设备配置
+# ------------------------------------------------------------
+device:
+  use_gpu: true
+  gpu_id: 0
+  multi_gpu: false
+  gpu_ids: [0]
+
+# ------------------------------------------------------------
+# 9. 日志配置
+# ------------------------------------------------------------
+logging:
+  log_dir: "./logs"
+  use_tensorboard: true
+  tensorboard_dir: "./runs"
+  checkpoint_dir: "./checkpoints"
+  save_every_n_epochs: 10
+  save_best_only: true
+  experiment_name: "dann_hil2real_improved"
+
+# ------------------------------------------------------------
+# 10. 可复现性配置
+# ------------------------------------------------------------
+reproducibility:
+  seed: 42
+  deterministic: true
+  benchmark: false
+
+# ============================================================
+# 改进参数对比
+# ============================================================
+#
+# | 参数 | 原始值 | 改进值 | 说明 |
+# |------|--------|--------|------|
+# | gamma_grl | 17.7 | 3.0 | λ增长更慢，给特征提取器更多学习时间 |
+# | warmup_epochs | 5 | 20 | 延长预热期，前20轮专注分类任务 |
+# | learning_rate | 0.0068 | 0.0001 | 降低学习率，训练更稳定 |
+# | domain_loss_weight | 1.17 | 0.5 | 降低域损失权重，避免过度域适应 |
+# | classification_loss | CE | Focal | Focal Loss处理类别不平衡 |
+# | class_weights | None | auto | 自动计算逆频率权重 |
+#
+# ============================================================

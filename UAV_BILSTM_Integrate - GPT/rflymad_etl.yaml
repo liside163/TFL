@@ -1,0 +1,109 @@
+# 全局实验配置（与 `etl/config.py` 同步）
+# 目标：只改这个文件即可调整全局超参数；notebook 直接调用：
+#   from run import run_experiment
+#   run_experiment("rflymad_etl.yaml")
+#
+# Windows 路径建议：
+# - 推荐使用正斜杠：D:/path/to/dataset
+# - 或使用单引号：'D:\path\to\dataset'
+#   （不要用双引号包裹含 \U 的路径，YAML 可能把 \U 当作转义序列）
+
+experiment_name: "rflymad_etl"
+output_dir: "runs"
+
+repro:
+  seed: 42
+  deterministic: true
+
+# 特征模式：用于 HIL/Real 的 pos/vel 列映射与是否纳入特征
+# - all：纳入并按 domain 自动映射
+# - no_posvel：不纳入任何 vehicle_local_position* 相关特征
+features_mode: "all"
+
+data:
+  # 数据集根目录（放置 Case_[A][B][CD][EFGHIJ].csv）
+  dataset_root: "data"
+  file_glob: "**/*.csv"
+
+  # 时间列（用于重采样）；没有就设为 null
+  time_col: null
+  resample_hz: null
+
+  # 特征抽取三选一（优先级从上到下）：
+  # 1) feature_cols：直接写“真实列名”（旧方式）
+  # 2) scalar_features/vector_features：写“基列名+维度”（适配 RflyMAD 三种列风格）
+  # 3) null/空：自动从数值列推断（剔除 target_cols）
+  feature_cols: null
+  scalar_features: []
+  # 每项形如：{base: "_actuator_outputs_0_output", dim: 4, required: true}
+  vector_features: []
+  allow_missing_features: false
+
+  # 回归目标（二选一）：
+  # 1) target_vector（推荐用于 RflyMAD 执行器输出）
+  #    base 填你的 CSV 里“执行器输出”的基列名（支持三种列风格：单列字符串数组 / _0.._3 / [0]..[3]）
+  target_vector:
+    base: "_actuator_outputs_0_output"
+    dim: 4
+  target_cols: ["y1", "y2", "y3", "y4"]
+
+  # 窗口化参数
+  window_size: 128
+  stride: 32
+
+  # 划分比例
+  train_ratio: 0.7
+  val_ratio: 0.15
+
+  # DataLoader
+  batch_size: 64
+  num_workers: 0
+  pin_memory: true
+
+model:
+  input_dim: null
+  hidden_dim: 128
+  lstm_layers: 3
+  dropout: 0.1
+  mlp_hidden: 128
+  output_dim: 4
+
+train:
+  epochs: 30
+  lr: 0.001
+  weight_decay: 0.0
+  grad_clip_norm: 1.0
+  device: "cuda"
+  save_every: 1
+  early_stop_patience: 10
+
+transfer:
+  enable: false
+  lr: 0.0005
+  epochs: 10
+  # 冻结 BiLSTM 前 N 层（两种字段写法等价，优先 freeze_bilstm_layers）
+  freeze_first_n_bilstm: 2
+  freeze_bilstm_layers: null
+  pseudo_normal_enable: false
+  # pseudo-normal：保留低误差窗口比例（两种字段写法等价，优先 keep_low_error_quantile）
+  pseudo_keep_quantile: 0.7
+  keep_low_error_quantile: null
+
+ensemble:
+  enable: false
+  temperature: 1.0
+
+# 兼容保留（旧字段），当前主流程使用 `fault_detection`
+detect:
+  alpha: 3.0
+
+fault_detection:
+  alpha: 3.0
+  threshold_from: "source_train_error"   # source_train_error | target_pseudo_normal_error
+  error_mode: "per_channel"              # per_channel | any_channel | global
+  use_abs_error: true
+  global_reduce: "mean"                  # mean|max|l2
+
+viz:
+  enable: true
+  max_points: 2000

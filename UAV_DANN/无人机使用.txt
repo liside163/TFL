@@ -1,0 +1,152 @@
+======================================================================
+RflyMAD 数据集 (HIL 与 Real) 使用指南 -  README
+======================================================================
+
+Attention：数据处理后SIL和HIL每个csv样本中 UAVState_data_fault_state这一列是记录故障的 为0时故障没有发生 为1时故障发生, REAL中则没有这一列
+
+### 1. 数据集基本信息
+
+#### 1.1. 项目概述与数据来源
+*   **数据集名称**: RflyMAD (A Dataset for Multicopter Fault Detection and Health Assessment)
+*   **核心目标**: 用于多旋翼无人机的故障检测、隔离 (FDI) 与健康评估 (HA)。
+*   **数据来源**: 由北京航空航天大学“可靠飞行控制组”(Rfly) 基于 **RflySim 仿真平台** 和 **真实飞行实验** 采集。
+*   **总体规模**:
+    *   **总计**: 5629 个飞行案例
+    *   **SIL (软件在环)**: 2566 例
+    *   **HIL (硬件在环)**: 2566 例
+    *   **Real (真实飞行)**: 497 例
+
+#### 1.2 故障类型 (11种)
+- **执行器**: Motor(1-4个故障), Propeller(1-4个故障)
+- **系统状态**: Low Voltage, Load Lose
+- **环境干扰**: Wind Affect
+- **传感器**: 
+  - IMU相关: Accelerometer, Gyroscope, Magnetometer
+  - 其他: Barometer, GPS
+  - 综合: Sensors' Noise
+- **基准**: No Fault (无故障)
+
+#### 1.3 飞行状态 (6种)
+- **Hover**: 悬停，用于评估稳态容错能力。
+- **Waypoints**: 航点飞行，评估轨迹跟踪精度。
+- **Velocity Control**: 匀速运动，评估控制效率。
+- **Circling**: 绕圈，分析Yaw与Roll通道的耦合。
+- **Acceleration**: 加速，验证动力系统极限。
+- **Deceleration**: 减速。
+
+---
+
+### 2. 数据文件命名规则 (处理后)
+
+在使用官方数据处理工具后，生成的文件名遵循特定编码规则。
+
+**文件名格式**: `Case_[A][B][CD][EFGHIJ].csv`
+
+- **[A] 子数据集**:
+  - `1`: SIL (软件在环仿真)
+  - `2`: HIL (硬件在环仿真)
+  - `3`: Real (真实飞行)
+  - `4`: SIL with ROS
+  - `5`: HIL with ROS
+
+- **[B] 飞行状态**:
+  - `0`: hover (悬停)
+  - `1`: waypoint (航点)
+  - `2`: velocity (速度控制)
+  - `3`: circling (绕圈)
+  - `4`: acce (加速)
+  - `5`: dece (减速)
+
+- **[CD] 故障类型**:
+  - `00`: motor
+  - `01`: propeller
+  - `02`: low voltage
+  - `03`: wind affect
+  - `04`: load lose
+  - `05`: accelerometer
+  - `06`: gyroscope
+  - `07`: magnetometer
+  - `08`: barometer
+  - `09`: GPS
+  - `10`: No fault (无故障)
+
+- **[EFGHIJ] 序列号**:
+  - 同一配置下的数据采集序列号。
+
+**示例**: `Case_3109000005.csv`
+- `3`: Real (真实飞行) 数据。
+- `1`: waypoint (航点) 飞行状态。
+- `09`: GPS 故障。
+- `000005`: 该配置下的第6个数据样本。
+
+---
+
+
+
+### 3. (处理后) HIL 与 Real 数据特征对应 
+
+| #  | Real 数据集特征 (`rosbagTime`)           		  	| HIL 数据处理后特征 (`trueTime`)                			| 备注 / 关键差异                                  |
+|----|-------------------------------------------------------|-----------------------------------------------------------|--------------------------------------------------|
+| 1  | `_actuator_controls_0_0_control[4]`        			| `_actuator_controls_0_0_control[4]`            			| 直接对应 (姿态控制指令)                           
+| 2  | `_actuator_outputs_0_output[4]`           		 	| `_actuator_outputs_0_output[4]`                			| 直接对应 (PWM输出)                               
+| 3  | `_sensor_combined_0_gyro_rad[3]`           		| `_sensor_combined_0_gyro_rad[3]`              	 		| 直接对应 (陀螺仪)                               
+| 4  | `_sensor_combined_0_accelerometer_m_s2[3]` 	| `_sensor_combined_0_accelerometer_m_s2[3]`     		| 直接对应 (加速度计)                             
+| 5  | `_vehicle_air_data_0_baro_alt_meter[3]`    		| `_vehicle_air_data_0_baro_alt_meter[3]`        			| 直接对应 (气压计)                               
+| 6  | `_vehicle_attitude_0_q[4]`                 			| `_vehicle_attitude_0_q[4]`                     				| 直接对应 (姿态四元数)                            
+| 7  | `_vehicle_local_position_0_x [3]`          			| `_vehicle_local_position_setpoint_0_x[3]`      			| **⚠️ 关键差异**: Real是**实际位置**，HIL是**期望位置设定点**。 |
+| 8  | `_vehicle_local_position_0_vx[3]`          			| `_vehicle_local_position_setpoint_0_vx[3]`     		| **⚠️ 关键差异**: Real是**实际速度**，HIL是**期望速度设定点**。 |
+| 9  | `_vehicle_magnetometer_0_magnetometer_ga[3]`	| `_vehicle_magnetometer_0_magnetometer_ga[3]`   	| 直接对应 (磁力计)                               
+| 10 | `offb_flight_mode_slash_send_data_[3]`     		| - (无)                                         					| Real数据独有 (Offboard模式状态)                 
+| 11 | `rc_slash_in_channels[18]`                 			| - (无)                                         					| Real数据独有 (遥控器通道，通常不重要)             
+| 12 | `rfly_ctrl_lxl_slash_send_data_id`         			| `_rfly_ctrl_lxl_0_id`                          				| 基本对应 (故障ID)                                
+| 13 | `rfly_ctrl_lxl_slash_send_data_mode`       		| `_rfly_ctrl_lxl_0_mode`                        				| 基本对应 (故障模式)                              
+| 14 | `rfly_ctrl_lxl_slash_send_data_controls[16]`		| `_rfly_ctrl_lxl_0_controls[6]`                 				| 对应，但**维度不同**。需注意具体含义。            
+| 15 | - (无)                                     					| `TrueState_data_motorRPMs[4]`                  			| HIL数据独有 (**电机真实转速** - 真值)          
+| 16 | - (无)                                     					| `UAVState_data_cmd`                            				| HIL数据独有 (**底层指令** - 真值)                 
+| 17 | - (无)                                     					| `UAVState_data_fault_state`                    			| HIL数据独有 (**故障状态标志** - 真值标签)       
+
+**总结**: 经过官方工具处理后，两者的传感器和控制指令层面特征高度一致，可以直接用于模型迁移。主要区别在于 HIL 数据包含了仿真环境才能提供的“真值(Ground Truth)”信息，而 Real 数据则包含一些额外的遥控和模式状态信息。
+
+---
+
+### 4. HIL 与 Real (原始)数据特征分析与对齐
+
+这是当前工作的核心。我们分析了 **HIL 原始数据 (Ground Truth Data, GTD)** 和 **Real 处理后数据 (来自 ROS Bag)** 之间的特征对应关系。
+
+#### 4.1 可直接/间接对应的特征
+
+| HIL 原始数据特征 (GTD) 	| Real 处理后数据特征 (ROS Bag) 				| 对齐说明 |
+|-----------------------------|------------------------------------------------------|----------------------------------------------------------|
+| `PosNED` (3维)        	 	| `_vehicle_local_position_0_x` (NED, 3维) 		| **直接对应**。位置信息（北-东-地坐标系）。 |
+| `VelNED` (3维)         		| `_vehicle_local_position_0_vx` (NED, 3维) 		| **直接对应**。速度信息（北-东-地坐标系）。 |
+| `AccB` (3维, FRD)      		| `_sensor_combined_0_accelerometer_m_s2` (3维) | **直接对应**。机体坐标系下的加速度。 |
+| `AngRate` (3维, FRD)   	| `_sensor_combined_0_gyro_rad` (3维) 			| **直接对应**。机体坐标系下的角速度。 |
+| `q` (四元数, 4维)      		| `_vehicle_attitude_0_q` (4维) 				| **直接对应**。姿态四元数。 |
+| `motorRPMs` (8维)      	| `_actuator_outputs_0_output` (4维, PWM) 		| **间接对应**。HIL提供电机转速(RPM)，Real提供PWM信号。需要通过 `RPM ≈ k * (PWM_μs - 1000)` 进行转换，k为比例系数。 |
+| `cmd` (指令)          	 	| `rfly_ctrl_lxl_slash_send_data_id/mode` 		| **直接对应**。故障注入的ID和模式指令。 |
+| `PosGPS`               		| `_vehicle_local_position_0_x` (NED) 			| **间接对应**。HIL的GPS位置需通过全局与局部坐标系转换才能与Real的本地位置对齐。 |
+| `Eular` (欧拉角, 3维)  		| `_actuator_controls_0_0_control` (4维, 归一化) 或	| **间接对应**。HIL的姿态角可与Real的姿态控制指令（通常与期望姿态角相关）建立关联。 |
+|					| `rfly_ctrl_lxl_slash_send_data_controls_0~3` 		|
+
+#### 4.2 无法直接对应的特征 (Real 数据中独有)
+
+| Real 数据特征 						| 含义 					| HIL 原始数据中情况 	| 备注 |
+|-----------------------------------------------|------------------------------------|-----------------------|------------------------------------|
+| `_vehicle_air_data_0_baro_[0/1/2]` 		| 气压计数据 (高度/温度/气压) 	| 无直接对应特征 		| HIL仿真可能未单独记录这些原始气压值。 |
+| `rc_slash_in_channels` 				| 遥控器通道输入 				| 无 				| 在自主飞行模式下，此特征不重要。 |
+| `offb_flight_mode_slash_send_data_` 		| Offboard 模式状态 			| 无 				| 飞行模式状态，可由 `rfly_ctrl_lxl` 推断，不作为核心物理量。 |
+
+
+---
+
+####5 论文引用
+如果你的研究使用了此数据集，请务必引用以下论文：
+```bibtex
+@article{le2023rflymad,
+  title={RflyMAD: A dataset for multicopter fault detection and health assessment},
+  author={Le, Xiangli and Jin, Bo and Cui, Gen and Dai, Xunhua and Quan, Quan},
+  journal={The International Journal of Robotics Research},
+  pages={02783649241305153},
+  year={2023},
+  publisher={SAGE Publications Sage UK: London, England}
+}

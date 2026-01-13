@@ -1,0 +1,54 @@
+batch_experiment:
+  conditions_to_run:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  enabled: false
+  interval_seconds: 10
+comparison:
+  generate_plots: true
+  metrics_to_compare:
+  - accuracy
+  - f1_score
+  - precision
+  - recall
+  - confusion_matrix
+  mixed_model_checkpoint: ./checkpoints/best_model.pth
+conditions:
+  descriptions:
+    0: 悬停 - 评估稳态容错能力
+    1: 航点飞行 - 评估轨迹跟踪精度
+    2: 速度控制 - 评估控制效率
+    3: 绕圈飞行 - 分析Yaw与Roll通道耦合
+    4: 加速 - 验证动力系统极限
+    5: 减速 - 验证减速控制
+  names:
+    0: hover
+    1: waypoint
+    2: velocity
+    3: circling
+    4: acce
+    5: dece
+output:
+  checkpoint_dir: ./checkpoints/single_condition
+  comparison_report: ./results/comparison_report.md
+  experiment_log: ./results/experiment_log.csv
+  results_dir: ./results/single_condition
+  tensorboard_dir: ./runs/single_condition
+single_condition:
+  current_condition: 0
+  enabled: true
+  include_all_faults: true
+training_override:
+  batch_size: 32
+  dataloader:
+    num_workers: 8
+    persistent_workers: true
+    pin_memory: true
+    prefetch_factor: 4
+  early_stopping_patience: 30
+  num_epochs: 150
+  use_class_weights: true

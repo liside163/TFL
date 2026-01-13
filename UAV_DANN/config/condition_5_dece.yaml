@@ -1,0 +1,107 @@
+# ============================================================
+# 工况5: dece (减速) 完整配置
+# ============================================================
+# 说明：此文件包含 dece 工况的完整训练参数
+# Optuna 调优后会自动更新 training 部分的参数
+# ============================================================
+
+# 工况标识
+condition:
+  id: 5
+  name: "dece"
+  description: "减速 - 验证减速控制"
+
+# 工况名称映射 (供脚本读取)
+conditions:
+  names:
+    0: "hover"
+    1: "waypoint"
+    2: "velocity"
+    3: "circling"
+    4: "acce"
+    5: "dece"
+
+# ------------------------------------------------------------
+# 训练配置 (Optuna调优后会更新此部分)
+# ------------------------------------------------------------
+training:
+  # 批量大小
+  batch_size: 32
+  
+  # 训练轮数
+  num_epochs: 150
+  
+  # 早停配置
+  early_stopping_patience: 30
+  
+  # DataLoader 配置 (Linux环境)
+  dataloader:
+    num_workers: 8
+    prefetch_factor: 4
+    persistent_workers: true
+    pin_memory: true
+  
+  # 优化器配置
+  optimizer:
+    name: "adam"
+    learning_rate: 0.006851
+    weight_decay: 0.001291
+    betas: [0.9, 0.999]
+  
+  # 学习率调度器
+  scheduler:
+    name: "warmup_cosine"
+    warmup_epochs: 5
+    step_size: 30
+    gamma: 0.1
+  
+  # 域适应配置
+  domain_adaptation:
+    gamma_grl: 17.7095
+    warmup_epochs: 5
+    domain_loss_weight: 1.1723
+    domain_weight_schedule: "exponential"
+  
+  # 损失函数配置
+  loss:
+    classification: "cross_entropy"
+    domain: "binary_cross_entropy"
+    use_class_weights: true
+  model_hyperparameters:
+    cnn:
+      num_layers: 2
+      channels: [64, 128]
+    lstm:
+      num_layers: 2
+      hidden_size: 128
+      dropout: 0.3
+      bidirectional: false
+    classifier:
+      num_layers: 2
+      hidden_dim: 64
+      dropout: 0.5
+    discriminator:
+      num_layers: 2
+      hidden_dim: 64
+    use_batchnorm: false
+    use_layernorm: true
+    use_attention: true
+    use_residual: true
+
+# ------------------------------------------------------------
+# 输出路径配置
+# ------------------------------------------------------------
+output:
+  results_dir: "./results/single_condition"
+  checkpoint_dir: "./checkpoints/single_condition"
+  tensorboard_dir: "./runs/single_condition"
+  comparison_report: "./results/comparison_report.md"
+  experiment_log: "./results/experiment_log.csv"
+
+# ------------------------------------------------------------
+# 批量实验配置
+# ------------------------------------------------------------
+batch_experiment:
+  enabled: false
+  conditions_to_run: [5]
+  interval_seconds: 10

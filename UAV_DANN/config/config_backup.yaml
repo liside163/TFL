@@ -1,0 +1,131 @@
+data:
+  # 数据路径使用环境变量 (Docker容器中 DATA_ROOT=/data)
+  data_root: "${DATA_ROOT:D:/DL_LEARN/Dataset/Processdata_HIL&REAL}"
+  processed_dir: "${DATA_ROOT:D:/DL_LEARN/Dataset/Processdata_HIL&REAL}/processed"
+  random_seed: 42
+  source_domain: HIL
+  target_domain: REAL
+  test_ratio: 0.15
+  train_ratio: 0.7
+  val_ratio: 0.15
+device:
+  gpu_id: 0
+  gpu_ids:
+  - 0
+  multi_gpu: false
+  use_gpu: true
+evaluation:
+  f1_average: weighted
+  metrics:
+  - accuracy
+  - f1_score
+  - precision
+  - recall
+  - confusion_matrix
+  save_predictions: true
+  visualization:
+    plot_confusion_matrix: true
+    plot_domain_distribution: true
+    plot_training_curves: true
+    plot_tsne: true
+fault_types:
+  labels:
+    0: No_Fault
+    1: Motor
+    2: Propeller
+    3: Low_Voltage
+    4: Wind_Affect
+    5: Load_Lose
+    6: Accelerometer
+    7: Gyroscope
+    8: Magnetometer
+    9: Barometer
+    10: GPS
+  num_classes: 11
+logging:
+  checkpoint_dir: ./checkpoints
+  experiment_name: dann_hil2real_11faults
+  log_dir: ./logs
+  save_best_only: true
+  save_every_n_epochs: 10
+  tensorboard_dir: ./runs
+  use_tensorboard: true
+model:
+  classifier:
+    dropout: 0.5
+    hidden_dim: 64
+    num_classes: 11
+  domain_discriminator:
+    dropout: 0.5
+    hidden_dim: 64
+  feature_extractor:
+    cnn:
+      conv1_kernel_size: 5
+      conv1_out_channels: 64
+      conv1_padding: 2
+      conv1_stride: 1
+      conv2_kernel_size: 5
+      conv2_out_channels: 128
+      conv2_padding: 2
+      conv2_stride: 1
+      pool_kernel_size: 2
+      pool_stride: 2
+    lstm:
+      bidirectional: false
+      dropout: 0.3
+      hidden_size: 128
+      num_layers: 2
+  name: dann
+preprocessing:
+  n_features: 21
+  normalization: zscore
+  selected_features:
+  - _actuator_controls_0_0_control[0]
+  - _actuator_controls_0_0_control[1]
+  - _actuator_controls_0_0_control[2]
+  - _actuator_controls_0_0_control[3]
+  - _actuator_outputs_0_output[0]
+  - _actuator_outputs_0_output[1]
+  - _actuator_outputs_0_output[2]
+  - _actuator_outputs_0_output[3]
+  - _sensor_combined_0_gyro_rad[0]
+  - _sensor_combined_0_gyro_rad[1]
+  - _sensor_combined_0_gyro_rad[2]
+  - _sensor_combined_0_accelerometer_m_s2[0]
+  - _sensor_combined_0_accelerometer_m_s2[1]
+  - _sensor_combined_0_accelerometer_m_s2[2]
+  - _vehicle_air_data_0_baro_alt_meter
+  - _vehicle_air_data_0_baro_temp_celcius
+  - _vehicle_air_data_0_baro_pressure_pa
+  - _vehicle_attitude_0_q[0]
+  - _vehicle_attitude_0_q[1]
+  - _vehicle_attitude_0_q[2]
+  - _vehicle_attitude_0_q[3]
+  stride: 50
+  window_size: 100
+reproducibility:
+  benchmark: false
+  deterministic: true
+  seed: 42
+training:
+  batch_size: 32
+  domain_adaptation:
+    domain_loss_weight: 1.0
+    gamma_grl: 10.0
+    warmup_epochs: 10
+  loss:
+    class_weights: null
+    classification: cross_entropy
+    domain: binary_cross_entropy
+  num_epochs: 100
+  optimizer:
+    betas:
+    - 0.9
+    - 0.999
+    learning_rate: 0.001
+    name: adam
+    weight_decay: 0.0001
+  scheduler:
+    gamma: 0.1
+    name: step
+    step_size: 30

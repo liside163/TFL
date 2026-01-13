@@ -1,0 +1,73 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# 模型文件
+*.pth
+*.pt
+*.h5
+*.pkl
+*.ckpt
+*.weights
+
+# 数据文件（根据需要调整）
+data/*.csv
+data/*.mat
+data/*.npy
+data/*.npz
+data/*.txt
+# 如果要保留部分数据文件，可以使用：
+# !data/important_data.csv
+
+# 日志和输出
+logs/
+runs/
+outputs/
+results/*.txt
+results/*.csv
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.log
+
+# 临时文件
+tmp/
+temp/
+*.tmp

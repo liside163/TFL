@@ -1,0 +1,80 @@
+batch_experiment:
+  conditions_to_run:
+  - 0
+  enabled: false
+  interval_seconds: 10
+condition:
+  description: 悬停 - 评估稳态容错能力
+  id: 0
+  name: hover
+conditions:
+  names:
+    0: hover
+    1: waypoint
+    2: velocity
+    3: circling
+    4: acce
+    5: dece
+output:
+  checkpoint_dir: ./checkpoints/single_condition
+  comparison_report: ./results/comparison_report.md
+  experiment_log: ./results/experiment_log.csv
+  results_dir: ./results/single_condition
+  tensorboard_dir: ./runs/single_condition
+training:
+  batch_size: 16
+  dataloader:
+    num_workers: 8
+    persistent_workers: true
+    pin_memory: true
+    prefetch_factor: 4
+    use_weighted_sampler: false
+  domain_adaptation:
+    domain_loss_weight: 0.3328
+    domain_weight_schedule: exponential
+    gamma_grl: 1.1648
+    warmup_epochs: 20
+    phase1_epochs: 20
+  early_stopping_patience: 50
+  loss:
+    classification: cross_entropy
+    focal_gamma: 1.5
+    domain: binary_cross_entropy
+    use_class_weights: false
+  model_hyperparameters:
+    classifier:
+      dropout: 0.5841
+      hidden_dim: 64
+      num_layers: 2
+    cnn:
+      channels:
+      - 48
+      - 96
+      - 192
+      - 384
+      num_layers: 4
+    discriminator:
+      hidden_dim: 96
+      num_layers: 3
+    lstm:
+      bidirectional: false
+      dropout: 0.4204
+      hidden_size: 96
+      num_layers: 2
+    use_batchnorm: false
+    use_layernorm: true
+    use_attention: true
+    use_residual: true
+  num_epochs: 150
+  optimizer:
+    betas:
+    - 0.9
+    - 0.999
+    learning_rate: 0.000568
+    name: adam
+    weight_decay: 8.0e-06
+  scheduler:
+    gamma: 0.1
+    name: warmup_cosine
+    step_size: 30
+    warmup_epochs: 27

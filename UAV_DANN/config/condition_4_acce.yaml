@@ -1,0 +1,76 @@
+condition:
+  id: 4
+  name: acce
+  description: 加速 - 验证动力系统极限
+conditions:
+  names:
+    0: hover
+    1: waypoint
+    2: velocity
+    3: circling
+    4: acce
+    5: dece
+training:
+  batch_size: 64
+  num_epochs: 150
+  early_stopping_patience: 30
+  dataloader:
+    num_workers: 8
+    prefetch_factor: 4
+    persistent_workers: true
+    pin_memory: true
+  optimizer:
+    name: adam
+    learning_rate: 0.000454
+    weight_decay: 7.2e-05
+    betas:
+    - 0.9
+    - 0.999
+  scheduler:
+    name: warmup_cosine
+    warmup_epochs: 10
+    step_size: 30
+    gamma: 0.1
+  domain_adaptation:
+    gamma_grl: 6.9902
+    warmup_epochs: 5
+    domain_loss_weight: 0.3573
+    domain_weight_schedule: exponential
+  loss:
+    classification: cross_entropy
+    domain: binary_cross_entropy
+    use_class_weights: true
+  model_hyperparameters:
+    cnn:
+      num_layers: 3
+      channels:
+      - 48
+      - 96
+      - 192
+    lstm:
+      num_layers: 2
+      hidden_size: 256
+      dropout: 0.206
+      bidirectional: true
+    classifier:
+      num_layers: 3
+      hidden_dim: 32
+      dropout: 0.4346
+    discriminator:
+      num_layers: 1
+      hidden_dim: 64
+    use_batchnorm: false
+    use_layernorm: true
+    use_attention: true
+    use_residual: true
+output:
+  results_dir: ./results/single_condition
+  checkpoint_dir: ./checkpoints/single_condition
+  tensorboard_dir: ./runs/single_condition
+  comparison_report: ./results/comparison_report.md
+  experiment_log: ./results/experiment_log.csv
+batch_experiment:
+  enabled: false
+  conditions_to_run:
+  - 4
+  interval_seconds: 10
