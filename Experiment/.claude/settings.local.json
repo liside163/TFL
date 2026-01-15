@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(superpowers:executing-plans)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
