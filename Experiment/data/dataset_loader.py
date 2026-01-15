@@ -33,22 +33,24 @@ class HILDatasetLoader:
         """
         # 提取基本信息
         basename = os.path.basename(filename)
-        # 移除.csv扩展名
-        name_without_ext = basename.replace('.csv', '')
+        # 移除.csv扩展名和Case_前缀
+        name_without_ext = basename.replace('.csv', '').replace('Case_', '')
 
-        # 解析: Case_2[B][CD][EFGHIJ]
-        # Case_2: 前缀
-        # [B]: 第6位字符 - 飞行状态
-        # [CD]: 第7-8位字符 - 故障类型
-        # [EFGHIJ]: 第9位及之后 - 案例ID
+        # 解析: X[S][FT][CASEID]
+        # X: 第1位 - 数据类型 (1=sil, 2=hil, 3=real)
+        # S: 第2位 - 飞行状态 (0-5)
+        # FT: 第3-4位 - 故障类型 (00-10)
+        # CASEID: 第5位及之后 - 案例ID
 
-        if len(name_without_ext) < 9:
+        if len(name_without_ext) < 5:
             raise ValueError(f"文件名格式错误: {filename}")
 
-        state_id = int(name_without_ext[5])  # 第6位字符 (索引5)
-        fault_type = int(name_without_ext[6:8])  # 第7-8位字符 (索引6-7)
-        case_id = int(name_without_ext[8:])  # 剩余部分 (索引8开始)
+        data_type = int(name_without_ext[0])  # 第1位: 1=sil, 2=hil, 3=real
+        state_id = int(name_without_ext[1])  # 第2位: 飞行状态
+        fault_type = int(name_without_ext[2:4])  # 第3-4位: 故障类型
+        case_id = int(name_without_ext[4:])  # 第5位及之后: 案例ID
 
+        # 只返回state_id和fault_type，data_type用于验证是否为HIL数据
         return state_id, fault_type, case_id
 
     def load_hil_data(self, state_id):
@@ -69,6 +71,7 @@ class HILDatasetLoader:
             labels: List[int] - 故障标签列表
         """
         # 搜索所有匹配的文件
+        # HIL数据的格式：Case_2[S][FT]*.csv (第1位为2表示HIL，第2位为state_id)
         pattern = os.path.join(self.data_dir, f"Case_2{state_id}*.csv")
         files = glob.glob(pattern)
 
